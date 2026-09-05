@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline AI App - अमित यादव</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; -webkit-user-select: none; }
+        body { background-color: #f0f2f5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        header { background-color: #007bff; color: white; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .header-left, .header-right { display: flex; align-items: center; gap: 10px; }
+        .icon-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
+        .new-chat-btn { background: #007bff; border: 2px solid white; color: white; padding: 5px 10px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .header-title { font-size: 18px; font-weight: bold; color: white; }
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #f4f6f9; }
+        .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 8px; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-wrap: break-word; }
+        .bubble-left { align-self: flex-start; background: #ffffff; border-left: 4px solid #007bff; }
+        .bubble-right { align-self: flex-end; background: #e3f2fd; border-right: 4px solid #007bff; }
+        .bubble-time { font-size: 10px; color: #777; text-align: right; margin-top: 4px; }
+        .chat-footer { padding: 10px; background: #ffffff; display: flex; gap: 8px; border-top: 1px solid #ddd; }
+        .chat-footer input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; outline: none; font-size: 15px; user-select: text; -webkit-user-select: text; }
+        .send-btn { background-color: #007bff; color: white; border: none; padding: 0 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .memory-btn-bar { padding: 10px; background: #ffffff; display: flex; }
+        .memory-wide-btn { width: 100%; background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-box, .fullscreen-modal-box { background: white; border-radius: 10px; width: 92%; max-width: 400px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .fullscreen-modal-box { width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; border-radius: 0; }
+        .modal-header { background: #007bff; color: white; padding: 15px; font-size: 16px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .modal-body { padding: 15px 15px 120px 15px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .modal-footer { padding: 12px 15px; background: #f8f9fa; display: flex; gap: 10px; border-top: 1px solid #eee; flex-shrink: 0; justify-content: center; }
+        .modal-box input, .modal-box textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; font-size: 14px; user-select: text; }
+        .modal-box textarea { resize: vertical; min-height: 90px; }
+        .btn { padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-cancel { background: #6c757d; color: white; flex: 1; }
+        .btn-ok, .btn-save { background: #007bff; color: white; flex: 1; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-edit { background: #ffc107; color: #212529; }
+        .history-item, .memory-item-card { padding: 12px 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
+        .memory-actions { display: flex; gap: 6px; }
+        .forget-btn-text { font-size: 13px; color: #ffffff; cursor: pointer; font-weight: 800; letter-spacing: 0.5px; }
+        
+        .toast-popup {
+            position: fixed;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #212529;
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            text-align: center;
+            border: 1px solid #444;
+            max-width: 85%;
+        }
+        .toast-popup.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div id="toastPopup" class="toast-popup"></div>
+
+    <header>
+        <div class="header-left">
+            <button class="icon-btn" onclick="openHistoryModal()" title="History">☰</button>
+            <button class="new-chat-btn" onclick="startNewChat()">➕ NEW</button>
+        </div>
+        <div class="header-title">अमित यादव</div>
+        <div class="header-right">
+            <button class="icon-btn" onclick="clearCurrentChat()" title="Clear">🗑️</button>
+            <button class="icon-btn" onclick="openTrainingModal()" title="Settings">⚙️</button>
+        </div>
+    </header>
+
+    <div class="chat-body" id="chatBody"></div>
+
+    <div class="chat-footer">
+        <input type="text" id="userInput" placeholder="संदेश यहाँ लिखें... 🤖" onkeydown="if(event.key==='Enter') sendMessage()">
+        <button class="send-btn" onclick="sendMessage()">SEND</button>
+    </div>
+
+    <div class="memory-btn-bar">
+        <button class="memory-wide-btn" onclick="handleMemoryHistoryClick()">📋 MEMORY HISTORY</button>
+    </div>
+    <!-- चैट हिस्ट्री मोडल -->
+    <div id="historyModal" class="modal-overlay">
+        <div class="fullscreen-modal-box">
+            <div class="modal-header">
+                <span style="font-size: 18px;">CHAT HISTORY 📜</span>
+                <div style="display:flex; gap:18px; align-items:center;">
+                    <span style="cursor:pointer; font-size:22px;" onclick="clearAllChatHistoryDirect()" title="Clear All">🗑️</span>
+                    <span style="cursor:pointer; font-size:20px;" onclick="closeHistoryModal()" title="Close">❌</span>
+                </div>
+            </div>
+            <div class="modal-body" id="historyListContainer"></div>
+            <div class="modal-footer"><button class="btn btn-cancel" onclick="closeHistoryModal()">BACK</button></div>
+        </div>
+    </div>
+
+    <!-- मेमोरी लॉक मोडल (FORGET PASSWORD टेक्स्ट सहित) -->
+    <div id="memoryLockModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span>MEMORY LOCK</span>
+                <span class="forget-btn-text" onclick="openForgotModal()">FORGET PASSWORD</span>
+            </div>
+            <div class="modal-body" style="text-align: center; padding-bottom: 20px;">
+                <p style="font-weight:bold; margin-bottom:12px; font-size:15px;">ENTER PASSWORD</p>
+                <input type="password" id="lockPasswordInput" placeholder="Password" style="text-align:center;" oninput="autoCheckMemoryLockPassword()">
+            </div>
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn btn-cancel" style="max-width: 140px;" onclick="closeMemoryLock()">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- फॉरगेट पासवर्ड मोडल -->
+    <div id="forgotPasswordModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header"><span>FORGET PASSWORD</span><span style="cursor:pointer;" onclick="closeForgotModal()">❌</span></div>
+            <div class="modal-body" style="padding-bottom: 20px;">
+                <label style="font-size:12px; font-weight:bold;">ENTER YOUR NICKNAME:</label>
+                <input type="text" id="recoveryNicknameInput" placeholder="Enter nickname...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" onclick="closeForgotModal()">CANCEL</button>
+                <button class="btn btn-ok" onclick="verifyNicknameAndReset()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- सवाल का पासवर्ड वेरिफिकेशन मोडल -->
+    <div id="questionPasswordModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header"><span>PASSWORD</span></div>
+            <div class="modal-body" style="text-align: center; padding-bottom: 20px;">
+                <p style="font-weight:bold; margin-bottom:12px; font-size:15px;">ENTER PASSWORD</p>
+                <input type="password" id="qPasswordInput" placeholder="Password" style="text-align:center;" oninput="autoCheckQuestionPassword()">
+            </div>
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn btn-cancel" style="max-width: 140px;" onclick="cancelQuestionPassword()">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ट्रेनिंग सेटिंग्स मोडल -->
+    <div id="trainingModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header"><span id="trainingModalTitle">TRAINING SETTINGS ⚙️</span><span style="cursor:pointer;" onclick="closeTrainingModal()">❌</span></div>
+            <div class="modal-body">
+                <label style="font-size:12px; font-weight:bold;">🔒 गुप्त पासवर्ड (वैकल्पिक / Optional):</label>
+                <input type="password" id="trainPassword" placeholder="इस प्रश्न के लिए पासवर्ड (वैकल्पिक)...">
+
+                <label style="font-size:12px; font-weight:bold;">🔤 English Question:</label>
+                <input type="text" id="trainEnglishQ" lang="en" placeholder="Enter English question...">
+                
+                <label style="font-size:12px; font-weight:bold;">🇮🇳 हिंदी प्रश्न:</label>
+                <input type="text" id="trainHindiQ" lang="hi" placeholder="हिंदी में प्रश्न लिखें...">
+                
+                <label style="font-size:12px; font-weight:bold;">📝 उत्तर (Answer):</label>
+                <textarea id="trainAnswer" lang="hi" placeholder="उत्तर यहाँ लिखें..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" onclick="closeTrainingModal()">CANCEL</button>
+                <button class="btn btn-save" onclick="saveTrainingData()">SAVE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- मेमोरी हिस्ट्री मोडल -->
+    <div id="memoryHistoryModal" class="modal-overlay">
+        <div class="fullscreen-modal-box">
+            <div class="modal-header">
+                <span style="font-size: 18px;">📋 MEMORY HISTORY</span>
+                <div style="display:flex; gap:18px; align-items:center;">
+                    <span style="cursor:pointer; font-size:22px;" onclick="openMemorySettingsModal()" title="Settings">⚙️</span>
+                    <span style="cursor:pointer; font-size:20px;" onclick="closeMemoryHistoryModal()" title="Close">❌</span>
+                </div>
+            </div>
+            <div class="modal-body" id="memoryListContainer"></div>
+            <div class="modal-footer"><button class="btn btn-cancel" onclick="closeMemoryHistoryModal()">BACK</button></div>
+        </div>
+    </div>
+
+    <!-- पासवर्ड व निकनेम सेट मोडल -->
+    <div id="memorySettingsModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header"><span>SET PASSWORD</span><span style="cursor:pointer;" onclick="closeMemorySettingsModal()">❌</span></div>
+            <div class="modal-body" style="padding-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
+                <label style="font-size:12px; font-weight:bold;">NEW PASSWORD:</label>
+                <input type="password" id="newPassInput" placeholder="Enter password">
+                
+                <label style="font-size:12px; font-weight:bold; margin-top:5px;">NICKNAME (FOR RECOVERY):</label>
+                <input type="text" id="newNicknameInput" placeholder="Enter your nickname...">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" onclick="closeMemorySettingsModal()">CANCEL</button>
+                <button class="btn btn-ok" onclick="saveNewPasswordAction()">OK</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let chatSessions = JSON.parse(localStorage.getItem('ai_chat_sessions')) || [{ id: 'session_' + Date.now(), messages: [] }];
+        let activeSessionId = chatSessions[0].id;
+        let userCustomMemory = JSON.parse(localStorage.getItem('ai_memory_data')) || [];
+
+        // पुराना अटका हुआ पासवर्ड रीसेट कर दिया गया है
+        localStorage.removeItem('ai_app_password');
+        localStorage.removeItem('ai_app_nickname');
+        let appPassword = null;
+        let appNickname = null;
+
+        let currentEditingId = null; 
+        let openedFromMemoryHistory = false;
+        let pendingLockedMemory = null;
+        let toastTimer = null;
+
+        if (!history.state) {
+            history.replaceState({modal: null}, "", "");
+        }
+
+        function showPopupToast(msg) {
+            const toast = document.getElementById('toastPopup');
+            if (!toast) return;
+            toast.innerHTML = msg;
+            toast.classList.add('show');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        function saveData() {
+            localStorage.setItem('ai_chat_sessions', JSON.stringify(chatSessions));
+            localStorage.setItem('ai_memory_data', JSON.stringify(userCustomMemory));
+            if (appPassword) localStorage.setItem('ai_app_password', appPassword);
+            else localStorage.removeItem('ai_app_password');
+            if (appNickname) localStorage.setItem('ai_app_nickname', appNickname);
+            else localStorage.removeItem('ai_app_nickname');
+        }
+
+        function getCurrentSession() {
+            return chatSessions.find(s => s.id === activeSessionId) || chatSessions[0];
+        }
+
+        function checkSystemCommands(input) {
+            const lower = input.toLowerCase();
+            const now = new Date();
+            if (lower.includes('time') || lower.includes('समय') || lower.includes('samay')) {
+                return "अभी का समय: " + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " ⏰";
+            }
+            if (lower.includes('date') || lower.includes('तारीख') || lower.includes('tarikh') || lower.includes('today')) {
+                return "आज की तारीख: " + now.toLocaleDateString() + " 📅";
+            }
+            return null;
+        }
+
+        function findMatchingMemory(input) {
+            let cleanInput = input.toLowerCase().trim();
+            for (let mem of userCustomMemory) {
+                let enQ = (mem.englishQ || '').toLowerCase().trim();
+                let hiQ = (mem.hindiQ || '').toLowerCase().trim();
+                if ((enQ && (cleanInput.includes(enQ) || enQ.includes(cleanInput))) || 
+                    (hiQ && (cleanInput.includes(hiQ) || hiQ.includes(cleanInput)))) {
+                    return mem;
+                }
+            }
+            return null;
+        }
+
+        function renderChat() {
+            const chatBody = document.getElementById('chatBody');
+            if (!chatBody) return;
+            chatBody.innerHTML = '';
+            let session = getCurrentSession();
+
+            if (session.messages.length === 0) {
+                chatBody.innerHTML = `<p style="text-align:center; color:#777; margin-top:20px;">चैट शुरू करने के लिए मैसेज भेजें... 🤖✨</p>`;
+                return;
+            }
+
+            session.messages.forEach(msg => {
+                const bubble = document.createElement('div');
+                bubble.className = `chat-bubble ${msg.sender === 'user' ? 'bubble-right' : 'bubble-left'}`;
+                bubble.innerHTML = `<div>${msg.text}</div><div class="bubble-time">${msg.time}</div>`;
+                chatBody.appendChild(bubble);
+            });
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        function appendAiMessage(answer) {
+            let session = getCurrentSession();
+            session.messages.push({ 
+                sender: 'ai', 
+                text: answer, 
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+            });
+            saveData();
+            renderChat();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('userInput');
+            if (!input) return;
+            let text = input.value.trim();
+            if (!text) return;
+
+            let timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            let session = getCurrentSession();
+            session.messages.push({ sender: 'user', text: text, time: timeStr });
+            input.value = '';
+            renderChat();
+
+            setTimeout(() => {
+                let sysResp = checkSystemCommands(text);
+                if (sysResp) {
+                    appendAiMessage(sysResp);
+                    return;
+                }
+
+                let matchedMem = findMatchingMemory(text);
+                if (matchedMem) {
+                    if (matchedMem.password && matchedMem.password.trim() !== "") {
+                        pendingLockedMemory = matchedMem;
+                        let passInput = document.getElementById('qPasswordInput');
+                        passInput.value = '';
+                        history.pushState({modal: 'questionPassword'}, "", "");
+                        document.getElementById('questionPasswordModal').style.display = 'flex';
+                        setTimeout(() => { passInput.focus(); }, 150);
+                    } else {
+                        appendAiMessage(matchedMem.answer);
+                    }
+                } else {
+                    appendAiMessage("क्षमा करें, मुझे इस प्रश्न की जानकारी नहीं है। कृपया सेटिंग (⚙️) में जाकर इसे ट्रेन करें। 🤖✨");
+                }
+            }, 300);
+            saveData();
+        }
+
+        function autoCheckQuestionPassword() {
+            if (!pendingLockedMemory) return;
+            let entered = document.getElementById('qPasswordInput').value;
+            if (entered === pendingLockedMemory.password) {
+                let ans = pendingLockedMemory.answer;
+                pendingLockedMemory = null;
+                history.back();
+                setTimeout(() => { appendAiMessage(ans); }, 100);
+            }
+        }
+
+        function cancelQuestionPassword() {
+            pendingLockedMemory = null;
+            history.back();
+        }
+
+        function startNewChat() {
+            let session = getCurrentSession();
+            if (session.messages.length === 0) return;
+            let newId = 'session_' + Date.now();
+            chatSessions.unshift({ id: newId, messages: [] });
+            activeSessionId = newId;
+            saveData();
+            renderChat();
+        }
+
+        function clearCurrentChat() {
+            let session = getCurrentSession();
+            session.messages = [];
+            saveData();
+            renderChat();
+        }
+
+        function openHistoryModal() {
+            renderHistoryList();
+            history.pushState({modal: 'history'}, "", "");
+            document.getElementById('historyModal').style.display = 'flex';
+        }
+        function closeHistoryModal() { history.back(); }
+
+        function renderHistoryList() {
+            let container = document.getElementById('historyListContainer');
+            container.innerHTML = '';
+            chatSessions.forEach((s, index) => {
+                let preview = s.messages.length > 0 ? s.messages[0].text : 'खाली चैट';
+                let item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<span>चैट #${index + 1}: ${preview.substring(0, 20)}...</span>`;
+                item.onclick = () => { activeSessionId = s.id; renderChat(); closeHistoryModal(); };
+                container.appendChild(item);
+            });
+        }
+
+        function clearAllChatHistoryDirect() {
+            chatSessions = [{ id: 'session_' + Date.now(), messages: [] }];
+            activeSessionId = chatSessions[0].id;
+            saveData();
+            renderChat();
+            renderHistoryList();
+        }
+
+        function handleMemoryHistoryClick() {
+            if (!appPassword) { 
+                openMemorySettingsModal(); 
+            } else { 
+                let passInput = document.getElementById('lockPasswordInput');
+                passInput.value = ''; 
+                history.pushState({modal: 'memoryLock'}, "", "");
+                document.getElementById('memoryLockModal').style.display = 'flex'; 
+                setTimeout(() => { passInput.focus(); }, 150);
+            }
+        }
+        function closeMemoryLock() { history.back(); }
+
+        function autoCheckMemoryLockPassword() {
+            let entered = document.getElementById('lockPasswordInput').value;
+            if (appPassword && entered === appPassword) {
+                history.replaceState({modal: 'memoryHistory'}, "", "");
+                document.getElementById('memoryLockModal').style.display = 'none'; 
+                openMemoryHistoryModalRaw();
+            }
+        }
+
+        function openForgotModal() {
+            document.getElementById('recoveryNicknameInput').value = '';
+            history.pushState({modal: 'forgotPassword'}, "", "");
+            document.getElementById('forgotPasswordModal').style.display = 'flex';
+        }
+        function closeForgotModal() { history.back(); }
+
+        function verifyNicknameAndReset() {
+            let enteredNick = document.getElementById('recoveryNicknameInput').value.trim();
+            if (!enteredNick) {
+                showPopupToast("<strong>PLEASE ENTER NICKNAME</strong>");
+                return;
+            }
+            if (appNickname && enteredNick.toLowerCase() === appNickname.toLowerCase()) {
+                showPopupToast("<strong>PASSWORD RESET SUCCESSFUL!</strong>");
+                appPassword = null;
+                appNickname = null;
+                saveData();
+                document.getElementById('forgotPasswordModal').style.display = 'none';
+                document.getElementById('memoryLockModal').style.display = 'none';
+                history.replaceState({modal: 'memorySettings'}, "", "");
+                document.getElementById('newPassInput').value = '';
+                document.getElementById('newNicknameInput').value = '';
+                document.getElementById('memorySettingsModal').style.display = 'flex';
+            } else {
+                showPopupToast("<strong>WRONG NICKNAME!</strong>");
+            }
+        }
+
+        function openMemoryHistoryModalRaw() {
+            renderMemoryList();
+            document.getElementById('memoryHistoryModal').style.display = 'flex';
+        }
+        function closeMemoryHistoryModal() { history.back(); }
+
+        function deleteMemory(id) {
+            if (confirm("क्या आप इसे डिलीट करना चाहते हैं? ⚠️")) {
+                userCustomMemory = userCustomMemory.filter(m => m.id !== id);
+                saveData();
+                renderMemoryList();
+            }
+        }
+
+        function editMemory(id) {
+            let mem = userCustomMemory.find(m => m.id === id);
+            if (!mem) return;
+            currentEditingId = id;
+            openedFromMemoryHistory = true; 
+            document.getElementById('trainPassword').value = mem.password || '';
+            document.getElementById('trainEnglishQ').value = mem.englishQ || '';
+            document.getElementById('trainHindiQ').value = mem.hindiQ || '';
+            document.getElementById('trainAnswer').value = mem.answer || '';
+            document.getElementById('trainingModalTitle').innerText = 'EDIT TRAINING ⚙️';
+            
+            document.getElementById('memoryHistoryModal').style.display = 'none';
+            history.pushState({modal: 'training'}, "", "");
+            document.getElementById('trainingModal').style.display = 'flex';
+        }
+
+        function renderMemoryList() {
+            let container = document.getElementById('memoryListContainer');
+            container.innerHTML = '';
+            if (userCustomMemory.length === 0) {
+                container.innerHTML = `<p style="text-align:center; color:#777; margin-top:20px;">कोई कस्टम मेमोरी सेव नहीं है। 📂</p>`;
+                return;
+            }
+            userCustomMemory.forEach(mem => {
+                let card = document.createElement('div');
+                card.className = 'memory-item-card';
+                let lockIndicator = mem.password ? ' 🔒 (सुरक्षित)' : '';
+                card.innerHTML = `<div><strong>EN:</strong> ${mem.englishQ || '-'}<br><strong>HI:</strong> ${mem.hindiQ || '-'}${lockIndicator}<br><small><strong>Ans:</strong> ${mem.answer}</small></div>
+                                  <div class="memory-actions">
+                                      <button class="btn btn-edit" style="padding:6px 10px;" onclick="editMemory('${mem.id}')">EDIT</button>
+                                      <button class="btn btn-danger" style="padding:6px 10px;" onclick="deleteMemory('${mem.id}')">DELETE</button>
+                                  </div>`;
+                container.appendChild(card);
+            });
+        }
+
+        function openTrainingModal() { 
+            if (!currentEditingId) {
+                document.getElementById('trainingModalTitle').innerText = 'TRAINING SETTINGS ⚙️';
+                document.getElementById('trainPassword').value = '';
+                document.getElementById('trainEnglishQ').value = '';
+                document.getElementById('trainHindiQ').value = '';
+                document.getElementById('trainAnswer').value = '';
+                openedFromMemoryHistory = false;
+            }
+            history.pushState({modal: 'training'}, "", "");
+            document.getElementById('trainingModal').style.display = 'flex'; 
+        }
+        function closeTrainingModal() { history.back(); }
+        
+        function saveTrainingData() {
+            let pass = document.getElementById('trainPassword').value.trim();
+            let enQ = document.getElementById('trainEnglishQ').value.trim();
+            let hiQ = document.getElementById('trainHindiQ').value.trim();
+            let a = document.getElementById('trainAnswer').value.trim();
+            
+            if ((!enQ && !hiQ) || !a) {
+                showPopupToast("<strong>PLEASE FILL QUESTION & ANSWER</strong>");
+                return;
+            }
+
+            if (currentEditingId) {
+                let mem = userCustomMemory.find(m => m.id === currentEditingId);
+                if (mem) {
+                    mem.password = pass;
+                    mem.englishQ = enQ;
+                    mem.hindiQ = hiQ;
+                    mem.answer = a;
+                }
+                saveData();
+                history.back();
+            } else {
+                userCustomMemory.push({ 
+                    id: 'mem_' + Date.now(), 
+                    password: pass,
+                    englishQ: enQ,
+                    hindiQ: hiQ,
+                    answer: a 
+                });
+                saveData();
+                
+                document.getElementById('trainPassword').value = '';
+                document.getElementById('trainEnglishQ').value = '';
+                document.getElementById('trainHindiQ').value = '';
+                document.getElementById('trainAnswer').value = '';
+                document.getElementById('trainPassword').focus();
+            }
+        }
+
+        function openMemorySettingsModal() { 
+            document.getElementById('newPassInput').value = appPassword || '';
+            document.getElementById('newNicknameInput').value = appNickname || '';
+            history.pushState({modal: 'memorySettings'}, "", "");
+            document.getElementById('memorySettingsModal').style.display = 'flex'; 
+        }
+        function closeMemorySettingsModal() { history.back(); }
+
+        function saveNewPasswordAction() {
+            let newP = document.getElementById('newPassInput').value.trim();
+            let newN = document.getElementById('newNicknameInput').value.trim();
+            if (!newP) {
+                showPopupToast("<strong>PLEASE ENTER PASSWORD</strong>");
+                return;
+            }
+            if (!newN) {
+                showPopupToast("<strong>PLEASE ENTER NICKNAME</strong>");
+                return;
+            }
+            appPassword = newP;
+            appNickname = newN;
+            saveData(); 
+            closeMemorySettingsModal(); 
+            showPopupToast("<strong>PASSWORD SET SUCCESSFULLY!</strong>");
+        }
+
+        window.onpopstate = function(event) {
+            document.getElementById('historyModal').style.display = 'none';
+            document.getElementById('memoryLockModal').style.display = 'none';
+            document.getElementById('trainingModal').style.display = 'none';
+            document.getElementById('memoryHistoryModal').style.display = 'none';
+            document.getElementById('memorySettingsModal').style.display = 'none';
+            document.getElementById('questionPasswordModal').style.display = 'none';
+            document.getElementById('forgotPasswordModal').style.display = 'none';
+
+            const state = event.state;
+            if (state && state.modal) {
+                if (state.modal === 'history') document.getElementById('historyModal').style.display = 'flex';
+                else if (state.modal === 'memoryLock') document.getElementById('memoryLockModal').style.display = 'flex';
+                else if (state.modal === 'training') document.getElementById('trainingModal').style.display = 'flex';
+                else if (state.modal === 'memoryHistory') document.getElementById('memoryHistoryModal').style.display = 'flex';
+                else if (state.modal === 'memorySettings') document.getElementById('memorySettingsModal').style.display = 'flex';
+                else if (state.modal === 'questionPassword') document.getElementById('questionPasswordModal').style.display = 'flex';
+                else if (state.modal === 'forgotPassword') document.getElementById('forgotPasswordModal').style.display = 'flex';
+            }
+
+            if (!state || !state.modal) {
+                currentEditingId = null;
+                openedFromMemoryHistory = false;
+                pendingLockedMemory = null;
+            }
+        };
+
+        window.onload = () => { renderChat(); };
+    </script>
+</body>
+</html>
